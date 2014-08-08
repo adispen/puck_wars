@@ -1,0 +1,7 @@
+"AddonInfo"
+{
+
+	addontitle	"Puck Wars"
+	addonversion	0.0.1
+
+}
