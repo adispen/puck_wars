@@ -1,11 +1,11 @@
 print ('[puckwars] puckwars.lua' )
 
-DEBUG=true
 USE_LOBBY=false
 THINK_TIME = 0.1
 
 STARTING_GOLD = 500--650
-MAX_LEVEL = 50
+MAX_KILLS = 10
+MAX_LEVEL = 25
 
 -- Fill this table up with the required XP per level if you want to change it
 XP_PER_LEVEL_TABLE = {}
@@ -17,10 +17,10 @@ end
 
 if puck_wars_mode == nil then
     print ( '[puckwars] creating puckwars game mode' )
-      --puck_wars_mode = {}
-      --puck_wars_mode.szEntityClassName = "puckwars"
-      --puck_wars_mode.szNativeClassName = "dota_base_game_mode"
-      --puck_wars_mode.__index = puck_wars_mode
+    --puck_wars_mode = {}
+    --puck_wars_mode.szEntityClassName = "puckwars"
+    --puck_wars_mode.szNativeClassName = "dota_base_game_mode"
+    --puck_wars_mode.__index = puck_wars_mode
     puck_wars_mode = class({})
 end
 
@@ -43,7 +43,7 @@ function puck_wars_mode:InitGameMode()
   print('[puckwars] Starting to load Barebones gamemode...')
 
   -- Setup rules
-  GameRules:SetHeroRespawnEnabled( false )
+  GameRules:SetHeroRespawnEnabled( true )
   GameRules:SetUseUniversalShopMode( true )
   GameRules:SetSameHeroSelectionEnabled( false )
   GameRules:SetHeroSelectionTime( 30.0 )
@@ -57,7 +57,7 @@ function puck_wars_mode:InitGameMode()
   InitLogFile( "log/puckwars.txt","")
 
   -- Hooks
-  ListenToGameEvent('entity_killed', Dynamic_Wrap(puck_wars_mode, 'OnEntityKilled'), self)
+  ListenToGameEvent('entity_killed', Dynamic_Wrap(puck_wars_mode, 'OnEntityKilled'), self)  
   ListenToGameEvent('player_connect_full', Dynamic_Wrap(puck_wars_mode, 'AutoAssignPlayer'), self)
   ListenToGameEvent('player_disconnect', Dynamic_Wrap(puck_wars_mode, 'CleanupPlayer'), self)
   ListenToGameEvent('dota_item_purchased', Dynamic_Wrap(puck_wars_mode, 'ShopReplacement'), self)
@@ -66,52 +66,6 @@ function puck_wars_mode:InitGameMode()
   --ListenToGameEvent('player_info', Dynamic_Wrap(puck_wars_mode, 'PlayerInfo'), self)
   ListenToGameEvent('dota_player_used_ability', Dynamic_Wrap(puck_wars_mode, 'AbilityUsed'), self)
   ListenToGameEvent('npc_spawned', Dynamic_Wrap(puck_wars_mode, 'Spawn'), self)
-
-  Convars:RegisterCommand( "command_example", Dynamic_Wrap(puck_wars_mode, 'ExampleConsoleCommand'), "A console command example", 0 )
-  
-  -- Fill server with fake clients
-  Convars:RegisterCommand('fake', function()
-    -- Check if the server ran it
-    if not Convars:GetCommandClient() or DEBUG then
-      -- Create fake Players
-      SendToServerConsole('dota_create_fake_clients')
-        
-      self:CreateTimer('assign_fakes', {
-        endTime = Time(),
-        callback = function(puckwars, args)
-          local userID = 20
-          for i=0, 9 do
-            userID = userID + 1
-            -- Check if this player is a fake one
-            if PlayerResource:IsFakeClient(i) then
-              -- Grab player instance
-              local ply = PlayerResource:GetPlayer(i)
-              -- Make sure we actually found a player instance
-              if ply then
-                CreateHeroForPlayer('npc_dota_hero_axe', ply)
-                self:AutoAssignPlayer({
-                  userid = userID,
-                  index = ply:entindex()-1
-                })
-              end
-            end
-          end
-        end})
-    end
-  end, 'Connects and assigns fake Players.', 0)
-
-  Convars:RegisterCommand('debug', function()
-    -- Check if the server ran it
-    if not Convars:GetCommandClient() or DEBUG then
-      -- Create fake Players
-      local list = HeroList:GetAllHeroes()
-
-      for k,v in pairs(list) do
-        Physics:Unit(v)
-        v:SetPhysicsVelocity(Vector(1000,0,0))
-      end
-    end
-  end, 'Debug crap.', 0)
 
   -- Change random seed
   local timeTxt = string.gsub(string.gsub(GetSystemTime(), ':', ''), '0','')
@@ -130,6 +84,8 @@ function puck_wars_mode:InitGameMode()
   self.vPlayers = {}
   self.vRadiant = {}
   self.vDire = {}
+  self.scoreRadiant = 0
+  self.scoreDire = 0
 
   -- Active Hero Map
   self.vPlayerHeroData = {}
@@ -137,7 +93,7 @@ function puck_wars_mode:InitGameMode()
 
   print('[puckwars] Done precaching!') 
 
-  print('[puckwars] Done loading Barebones gamemode!\n\n')
+  print('[puckwars] Done loading PuckWars gamemode!\n\n')
 end
 
 function puck_wars_mode:CaptureGameMode()
@@ -156,40 +112,43 @@ function puck_wars_mode:CaptureGameMode()
     GameMode:SetTopBarTeamValuesOverride ( true )
     -- Use custom hero level maximum and your own XP per level
     GameMode:SetUseCustomHeroLevels ( true )
-    GameMode:SetCustomHeroMaxLevel ( MAX_LEVEL )
     GameMode:SetCustomXPRequiredToReachNextLevel( XP_PER_LEVEL_TABLE )
     -- Chage the minimap icon size
     GameRules:SetHeroMinimapIconSize( 300 )
+    GameMode:SetTopBarTeamValuesOverride ( true )
 
     print( '[puckwars] Beginning Think' ) 
-    GameMode:SetContextThink("BarebonesThink", Dynamic_Wrap( puck_wars_mode, 'Think' ), 0.1 )
+    GameMode:SetContextThink("PuckWarsThink", Dynamic_Wrap( puck_wars_mode, 'Think' ), 0.1 )
 
     --GameRules:GetGameModeEntity():SetThink( "Think", self, "GlobalThink", 2 )
 
-    self:SetupMultiTeams()
   end 
-end
-
-function puck_wars_mode:SetupMultiTeams()
-  MultiTeam:start()
-  MultiTeam:CreateTeam("team1")
-  MultiTeam:CreateTeam("team2")
 end
 
 function puck_wars_mode:AbilityUsed(keys)
   print('[puckwars] AbilityUsed')
   PrintTable(keys)
+  local ply = EntIndexToHScript(keys.player)
+  local unit = ply:GetAssignedHero()
+  if unit:IsRealHero() then
+    local max = unit:GetMaxMana()
+    local curr = unit:GetMana()
+    if max - curr ~= 0 then
+      unit:GiveMana(max - curr)
+    end
+  end
 end
 
 function puck_wars_mode:Spawn( keys )
   print('[puckwars] Spawned')
   local unit = EntIndexToHScript(keys.entindex)
-  if unit:IsHero() then
-    unit:SetBaseManaRegen(500)
-    local manareg = unit:GetManaRegen()
-    print (tostring(manareg))
+  if unit:IsRealHero() then
+    if unit:GetLevel() < 6 then
+      unit:AddExperience(600, false)
+    end
   end
 end
+
 -- Cleanup a player when they leave
 function puck_wars_mode:CleanupPlayer(keys)
   print('[puckwars] Player Disconnected ' .. tostring(keys.userid))
@@ -325,7 +284,7 @@ function puck_wars_mode:AutoAssignPlayer(keys)
         }
         self.vPlayers[playerID] = heroTable
 
-        -- Set up multiteam
+        --[[ Set up multiteam
         local team = "team1"
         if playerID > 3 then
           team = "team2"
@@ -340,7 +299,7 @@ function puck_wars_mode:AutoAssignPlayer(keys)
         if GameRules:State_Get() > DOTA_GAMERULES_STATE_PRE_GAME then
             -- This section runs if the player picks a hero after the round starts
         end
-
+        --]]
         return
       end
     end
@@ -535,19 +494,8 @@ function puck_wars_mode:RemoveTimers(killAll)
   puck_wars_mode.timers = timers2
 end
 
-function puck_wars_mode:ExampleConsoleCommand()
-  print( '******* Example Console Command ***************' )
-  local cmdPlayer = Convars:GetCommandClient()
-  if cmdPlayer then
-    local playerID = cmdPlayer:GetPlayerID()
-    if playerID ~= nil and playerID ~= -1 then
-      -- Do something here for the player who called this command
-    end
-  end
-
-  print( '*********************************************' )
-end
-
+scoreRadiant = 0
+scoreDire = 0
 function puck_wars_mode:OnEntityKilled( keys )
   print( '[puckwars] OnEntityKilled Called' )
   PrintTable( keys )
@@ -562,6 +510,36 @@ function puck_wars_mode:OnEntityKilled( keys )
   end
 
   -- Put code here to handle when an entity gets killed
+
+  if killedUnit:IsRealHero() then
+    if killerEntity:IsRealHero() then
+      
+      killerEntity:AddExperience(20, false)
+      killerEntity = EntIndexToHScript( keys.entindex_attacker )
+      local killedTeam = killedUnit:GetTeam()
+      local killerTeam = killerEntity:GetTeam()
+      if killedTeam == DOTA_TEAM_BADGUYS then
+        if killerTeam == 2 then
+          self.scoreRadiant = self.scoreRadiant + 1
+        end
+      elseif killedTeam == DOTA_TEAM_GOODGUYS then
+        if killerTeam == 3 then
+          self.scoreDire = self.scoreDire + 1
+        end
+      end
+      GameMode:SetTopBarTeamValue ( DOTA_TEAM_BADGUYS, self.scoreDire)
+      GameMode:SetTopBarTeamValue ( DOTA_TEAM_GOODGUYS, self.scoreRadiant )
+
+      if self.scoreDire >= MAX_KILLS then
+        GameRules:SetGameWinner(DOTA_TEAM_BADGUYS)
+        GameRules:MakeTeamLose(DOTA_TEAM_GOODGUYS)
+      end
+      if self.scoreRadiant >= MAX_KILLS  then
+        GameRules:SetGameWinner(DOTA_TEAM_GOODGUYS)
+        GameRules:MakeTeamLose(DOTA_TEAM_BADGUYS)
+      end
+    end
+  end
 end
 
 --==================
