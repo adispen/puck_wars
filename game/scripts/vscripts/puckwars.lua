@@ -40,7 +40,7 @@ end
 
 function puck_wars_mode:InitGameMode()
   puck_wars_mode = self
-  print('[puckwars] Starting to load Barebones gamemode...')
+  print('[puckwars] Starting to load PuckWars gamemode...')
 
   -- Setup rules
   GameRules:SetHeroRespawnEnabled( true )
@@ -512,6 +512,25 @@ function puck_wars_mode:OnEntityKilled( keys )
   -- Put code here to handle when an entity gets killed
 
   if killedUnit:IsRealHero() then
+
+    local death_count_down = 5
+    killedUnit:SetTimeUntilRespawn(death_count_down)
+
+    puck_wars_mode:CreateTimer(DoUniqueString("respawn"), {
+      endTime = GameRules:GetGameTime() + 1,
+      useGameTime = true,
+      callback = function(reflex, args)
+        death_count_down = death_count_down - 1
+        if death_count_down == 0 then
+          killedUnit:RespawnHero(false,false,false)
+          return
+        else
+          killedUnit:SetTimeUntilRespawn(death_count_down)
+          return GameRules:GetGameTime() + 1
+        end
+      end
+    })
+
     if killerEntity:IsRealHero() then
       
       killerEntity:AddExperience(20, false)

@@ -2,6 +2,6 @@
 {
 
 	addontitle	"Puck Wars"
-	addonversion	0.0.3
+	addonversion	0.0.4
 
 }
