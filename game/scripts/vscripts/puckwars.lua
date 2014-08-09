@@ -114,7 +114,7 @@ function puck_wars_mode:CaptureGameMode()
     GameMode:SetUseCustomHeroLevels ( true )
     GameMode:SetCustomXPRequiredToReachNextLevel( XP_PER_LEVEL_TABLE )
     -- Chage the minimap icon size
-    GameRules:SetHeroMinimapIconSize( 300 )
+    GameRules:SetHeroMinimapIconSize( 500 )
     GameMode:SetTopBarTeamValuesOverride ( true )
 
     print( '[puckwars] Beginning Think' ) 
