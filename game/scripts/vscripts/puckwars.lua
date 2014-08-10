@@ -3,7 +3,7 @@ print ('[puckwars] puckwars.lua' )
 USE_LOBBY=false
 THINK_TIME = 0.1
 
-STARTING_GOLD = 500--650
+STARTING_GOLD = 1000
 MAX_KILLS = 10
 MAX_LEVEL = 25
 
@@ -51,7 +51,7 @@ function puck_wars_mode:InitGameMode()
   GameRules:SetPostGameTime( 60.0 )
   GameRules:SetTreeRegrowTime( 60.0 )
   GameRules:SetUseCustomHeroXPValues ( true )
-  GameRules:SetGoldPerTick(0)
+  --GameRules:SetGoldPerTick(0)
   print('[puckwars] Rules set')
 
   InitLogFile( "log/puckwars.txt","")
